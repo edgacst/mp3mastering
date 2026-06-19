@@ -344,14 +344,6 @@ button:hover {
   background: rgba(8, 18, 34, 0.55);
 }
 
-.preview-title {
-  margin: 0 0 6px;
-  font-family: 'Outfit', 'IBM Plex Sans KR', sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #7dd3fc;
-}
-
 .preview-hint,
 .preview-status {
   margin: 0 0 10px;
@@ -364,31 +356,105 @@ button:hover {
   color: #fde68a;
 }
 
-.preview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.preview-col {
+.preview-studio {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 0;
+  gap: 10px;
 }
 
-.preview-label {
-  font-size: 0.82rem;
+.preview-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.preview-track-name {
+  margin: 0;
+  font-size: 0.95rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  color: #e2e8f0;
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.preview-label-original {
+.ab-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(15, 30, 52, 0.9);
+  border: 1px solid rgba(103, 232, 249, 0.25);
+}
+
+.ab-toggle-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
   color: #94a3b8;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.preview-label-master {
-  color: #67e8f9;
+.ab-toggle-btn:hover {
+  color: #e2e8f0;
+}
+
+.ab-toggle-btn.is-active {
+  color: #0b1320;
+  background: linear-gradient(92deg, #67e8f9, #facc15 85%);
+  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.25);
+}
+
+.waveform-canvas {
+  width: 100%;
+  height: 96px;
+  border-radius: 14px;
+  cursor: pointer;
+  display: block;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+}
+
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.preview-time {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stat-pill {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 30, 52, 0.75);
+  border: 1px solid rgba(103, 232, 249, 0.15);
+}
+
+.stat-pill strong {
+  color: #fde68a;
+  font-weight: 700;
 }
 
 .preview-audio {
@@ -397,8 +463,13 @@ button:hover {
 }
 
 @media (max-width: 640px) {
-  .preview-grid {
-    grid-template-columns: 1fr;
+  .preview-studio-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ab-toggle {
+    align-self: flex-start;
   }
 }
 

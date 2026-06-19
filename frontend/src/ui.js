@@ -1,3 +1,5 @@
+import { drawWaveform, formatTime, loadWaveformPeaks } from './waveform.js';
+
 const apiUrl = (path) => `${import.meta.env.BASE_URL}api/${path}`.replace(/([^:]\/)\/+/g, '$1');
 
 async function readApiError(res) {
@@ -10,7 +12,7 @@ async function readApiError(res) {
       return '처리 시간 초과(nginx 타임아웃). deploy/nginx.conf 의 proxy_read_timeout 600s 반영 후 reload nginx 하세요.';
     }
     if (text.trimStart().startsWith('<')) {
-      return `서버가 HTML 오류 페이지를 반환했습니다(HTTP ${res.status}). pm2 logs mastering-app 확인.`;
+      return '서버가 HTML 오류 페이지를 반환했습니다(HTTP ' + res.status + '). pm2 logs mastering-app 확인.';
     }
     return text.slice(0, 180) || `HTTP ${res.status}`;
   }
@@ -29,18 +31,25 @@ export function initUI() {
       <p id="fileSize"></p>
       <div id="fileList" style="margin:0.75rem 0;"></div>
       <div id="previewWrap" class="preview-wrap" style="display:none;" aria-live="polite">
-        <p id="previewTitle" class="preview-title">음질 비교 미리듣기</p>
         <p id="previewHint" class="preview-hint"></p>
         <p id="previewStatus" class="preview-status"></p>
-        <div class="preview-grid">
-          <div class="preview-col">
-            <span class="preview-label preview-label-original">원본 음질</span>
-            <audio id="previewOriginal" controls preload="metadata" class="preview-audio"></audio>
+        <div class="preview-studio">
+          <div class="preview-studio-head">
+            <p id="previewTrackName" class="preview-track-name"></p>
+            <div class="ab-toggle" role="group" aria-label="원본 또는 마스터링">
+              <button type="button" class="ab-toggle-btn" id="btnModeOriginal" data-mode="original">원본</button>
+              <button type="button" class="ab-toggle-btn is-active" id="btnModeMastered" data-mode="mastered">마스터링</button>
+            </div>
           </div>
-          <div class="preview-col">
-            <span class="preview-label preview-label-master">마스터링 음질</span>
-            <audio id="previewMastered" controls preload="metadata" class="preview-audio"></audio>
+          <canvas id="waveformCanvas" class="waveform-canvas" height="96" aria-hidden="true"></canvas>
+          <div class="preview-meta">
+            <span id="previewTime" class="preview-time">0:00 / 0:00</span>
+            <div class="preview-stats">
+              <span class="stat-pill">LUFS <strong id="statLufs">—</strong></span>
+              <span class="stat-pill">True Peak <strong id="statPeak">—</strong> dBTP</span>
+            </div>
           </div>
+          <audio id="previewAudio" controls preload="metadata" class="preview-audio"></audio>
         </div>
       </div>
       <button id="masterBtn">마스터링 시작</button>
@@ -58,6 +67,10 @@ export function initUI() {
 
   let uploadedTracks = [];
   let previewMasterObjectUrl = null;
+  let previewOriginalUrl = null;
+  let previewMode = 'mastered';
+  let previewStats = null;
+  let previewPeaks = { original: null, mastered: null };
 
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
@@ -74,11 +87,16 @@ export function initUI() {
   const downloadTitle = document.getElementById('downloadTitle');
   const downloadList = document.getElementById('downloadList');
   const previewWrap = document.getElementById('previewWrap');
-  const previewTitle = document.getElementById('previewTitle');
   const previewHint = document.getElementById('previewHint');
   const previewStatus = document.getElementById('previewStatus');
-  const previewOriginal = document.getElementById('previewOriginal');
-  const previewMastered = document.getElementById('previewMastered');
+  const previewTrackName = document.getElementById('previewTrackName');
+  const previewAudio = document.getElementById('previewAudio');
+  const waveformCanvas = document.getElementById('waveformCanvas');
+  const previewTime = document.getElementById('previewTime');
+  const statLufs = document.getElementById('statLufs');
+  const statPeak = document.getElementById('statPeak');
+  const btnModeOriginal = document.getElementById('btnModeOriginal');
+  const btnModeMastered = document.getElementById('btnModeMastered');
 
   let elapsedTimer = null;
   let elapsedStart = 0;
@@ -105,6 +123,22 @@ export function initUI() {
   fileInput.addEventListener('change', () => {
     const files = Array.from(fileInput.files || []);
     if (files.length) handleFiles(files);
+  });
+
+  btnModeOriginal.addEventListener('click', () => setPreviewMode('original'));
+  btnModeMastered.addEventListener('click', () => setPreviewMode('mastered'));
+
+  previewAudio.addEventListener('timeupdate', refreshWaveformProgress);
+  previewAudio.addEventListener('loadedmetadata', refreshTimeLabel);
+  previewAudio.addEventListener('seeked', refreshWaveformProgress);
+  window.addEventListener('resize', refreshWaveformProgress);
+
+  waveformCanvas.addEventListener('click', (e) => {
+    if (!previewAudio.duration) return;
+    const rect = waveformCanvas.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    previewAudio.currentTime = ratio * previewAudio.duration;
+    refreshWaveformProgress();
   });
 
   function handleFiles(files) {
@@ -162,7 +196,7 @@ export function initUI() {
     return {
       filename: data.filename,
       originalname: data.originalname || file.name,
-      size: data.size
+      size: data.size,
     };
   }
 
@@ -183,42 +217,83 @@ export function initUI() {
       URL.revokeObjectURL(previewMasterObjectUrl);
       previewMasterObjectUrl = null;
     }
-    if (previewOriginal) previewOriginal.removeAttribute('src');
-    if (previewMastered) previewMastered.removeAttribute('src');
+    previewOriginalUrl = null;
+    previewStats = null;
+    previewPeaks = { original: null, mastered: null };
+    previewMode = 'mastered';
+    previewAudio.removeAttribute('src');
+    previewAudio.load();
     if (previewWrap) previewWrap.style.display = 'none';
     if (previewStatus) previewStatus.textContent = '';
+    btnModeOriginal.classList.remove('is-active');
+    btnModeMastered.classList.add('is-active');
   }
 
-  function wireExclusiveAudioPlayback(a, b) {
-    if (a.dataset.abWired === '1') return;
-    a.dataset.abWired = '1';
-    b.dataset.abWired = '1';
-    a.addEventListener('play', () => {
-      if (!b.paused) b.pause();
-    });
-    b.addEventListener('play', () => {
-      if (!a.paused) a.pause();
-    });
+  function setPreviewMode(mode) {
+    if (!previewOriginalUrl || !previewMasterObjectUrl) return;
+    const wasPlaying = !previewAudio.paused;
+    const ratio = previewAudio.duration ? previewAudio.currentTime / previewAudio.duration : 0;
+
+    previewMode = mode;
+    btnModeOriginal.classList.toggle('is-active', mode === 'original');
+    btnModeMastered.classList.toggle('is-active', mode === 'mastered');
+
+    previewAudio.pause();
+    previewAudio.src = mode === 'original' ? previewOriginalUrl : previewMasterObjectUrl;
+    previewAudio.load();
+
+    previewAudio.addEventListener(
+      'loadedmetadata',
+      () => {
+        if (previewAudio.duration) previewAudio.currentTime = ratio * previewAudio.duration;
+        if (wasPlaying) void previewAudio.play().catch(() => {});
+        updateStatsDisplay();
+        refreshWaveformProgress();
+      },
+      { once: true },
+    );
   }
 
-  /** 여러 곡이어도 1번째 곡만 샘플 마스터링 후 A/B 미리듣기 */
+  function updateStatsDisplay() {
+    const stats = previewStats?.[previewMode === 'original' ? 'original' : 'mastered'];
+    if (!stats) {
+      statLufs.textContent = '—';
+      statPeak.textContent = '—';
+      return;
+    }
+    statLufs.textContent = stats.lufs != null ? `${stats.lufs} LUFS` : '—';
+    statPeak.textContent = stats.truePeak != null ? String(stats.truePeak) : '—';
+  }
+
+  function refreshTimeLabel() {
+    const cur = formatTime(previewAudio.currentTime);
+    const total = formatTime(previewAudio.duration);
+    previewTime.textContent = `${cur} / ${total}`;
+  }
+
+  function refreshWaveformProgress() {
+    refreshTimeLabel();
+    const peaks = previewPeaks[previewMode];
+    if (!peaks) return;
+    const ratio = previewAudio.duration ? previewAudio.currentTime / previewAudio.duration : 0;
+    drawWaveform(waveformCanvas, peaks.peaks, ratio, previewMode === 'original' ? 'original' : 'master');
+  }
+
   async function loadPreviewSample() {
     if (!uploadedTracks.length || !previewWrap) return;
 
     const track = uploadedTracks[0];
     previewWrap.style.display = 'block';
-    previewTitle.textContent = '음질 비교 미리듣기';
+    previewTrackName.textContent = track.originalname;
     previewHint.textContent =
       uploadedTracks.length > 1
-        ? `여러 곡 업로드됨 — 샘플은 1번째 곡「${track.originalname}」만 미리듣기합니다.`
-        : `「${track.originalname}」 원본 vs 마스터링 결과를 비교해 보세요.`;
-    previewStatus.textContent = '샘플 마스터링 생성 중… (잠시만 기다려 주세요)';
-    previewOriginal.removeAttribute('src');
-    previewMastered.removeAttribute('src');
+        ? `여러 곡 업로드됨 — 샘플은 1번째 곡만 미리듣기·파형·LUFS 비교합니다.`
+        : `토글로 원본·마스터링을 바꿔 들으며 음질 차이를 확인하세요.`;
+    previewStatus.textContent = '샘플 마스터링·분석 중… (잠시만 기다려 주세요)';
+    previewAudio.removeAttribute('src');
 
     try {
-      const originalSrc = apiUrl(`upload/original/${encodeURIComponent(track.filename)}`);
-      previewOriginal.src = originalSrc;
+      previewOriginalUrl = apiUrl(`upload/original/${encodeURIComponent(track.filename)}`);
 
       const res = await fetch(apiUrl('master/preview'), {
         method: 'POST',
@@ -228,13 +303,34 @@ export function initUI() {
 
       if (!res.ok) throw new Error(await readApiError(res));
 
+      const statsHeader = res.headers.get('X-Preview-Stats');
+      if (statsHeader) {
+        try {
+          previewStats = JSON.parse(statsHeader);
+        } catch {
+          previewStats = null;
+        }
+      }
+
       const blob = await res.blob();
       if (previewMasterObjectUrl) URL.revokeObjectURL(previewMasterObjectUrl);
       previewMasterObjectUrl = URL.createObjectURL(blob);
-      previewMastered.src = previewMasterObjectUrl;
 
-      wireExclusiveAudioPlayback(previewOriginal, previewMastered);
-      previewStatus.textContent = '재생 버튼을 눌러 원본·마스터링 음질을 비교해 보세요.';
+      previewStatus.textContent = '파형 생성 중…';
+      const [originalWave, masteredWave] = await Promise.all([
+        loadWaveformPeaks(previewOriginalUrl),
+        loadWaveformPeaks(blob),
+      ]);
+      previewPeaks.original = originalWave;
+      previewPeaks.mastered = masteredWave;
+
+      previewMode = 'mastered';
+      btnModeOriginal.classList.remove('is-active');
+      btnModeMastered.classList.add('is-active');
+      previewAudio.src = previewMasterObjectUrl;
+      updateStatsDisplay();
+      refreshWaveformProgress();
+      previewStatus.textContent = '원본 ↔ 마스터링 토글로 비교해 보세요.';
     } catch (err) {
       previewStatus.textContent = '미리듣기 생성 실패: ' + err.message;
     }
@@ -279,7 +375,7 @@ export function initUI() {
     const res = await fetch(apiUrl('master'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: track.filename, originalname: track.originalname })
+      body: JSON.stringify({ filename: track.filename, originalname: track.originalname }),
     });
 
     if (!res.ok) {
@@ -292,7 +388,7 @@ export function initUI() {
 
     return {
       url,
-      filename: serverFilename || ensureMp3Extension(track.originalname)
+      filename: serverFilename || ensureMp3Extension(track.originalname),
     };
   }
 
@@ -339,13 +435,12 @@ export function initUI() {
   function parseFilenameFromHeader(contentDisposition) {
     if (!contentDisposition) return null;
 
-    // RFC 5987: filename*=UTF-8''...
     const starMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
     if (starMatch && starMatch[1]) {
       try {
         return decodeURIComponent(starMatch[1]);
       } catch (_) {
-        // decode 실패 시 아래 fallback 로직 진행
+        /* fallback */
       }
     }
 

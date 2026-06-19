@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { masterToFile } = require('../lib/audioMastering');
+const { analyzeLoudness } = require('../lib/audioAnalysis');
 
 const router = express.Router();
 
@@ -49,7 +50,13 @@ router.post('/preview', async (req, res) => {
   const outputPath = path.join(previewDir, `preview_${safeName}`);
 
   try {
+    const originalStats = await analyzeLoudness(inputPath);
     await masterToFile(inputPath, outputPath);
+    const masteredStats = await analyzeLoudness(outputPath);
+    res.setHeader(
+      'X-Preview-Stats',
+      JSON.stringify({ original: originalStats, mastered: masteredStats }),
+    );
     streamMp3File(res, outputPath, { inline: true, displayName, safeName });
   } catch (err) {
     console.error('ffmpeg preview 오류:', err.message);

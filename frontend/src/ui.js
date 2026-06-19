@@ -1,3 +1,5 @@
+const apiUrl = (path) => `${import.meta.env.BASE_URL}api/${path}`.replace(/([^:]\/)\/+/g, '$1');
+
 export function initUI() {
   const app = document.getElementById('app');
 
@@ -113,7 +115,7 @@ export function initUI() {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const res = await fetch(apiUrl('upload'), { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '업로드 실패');
 
@@ -172,7 +174,7 @@ export function initUI() {
   });
 
   async function masterSingleTrack(track) {
-    const res = await fetch('/api/master', {
+    const res = await fetch(apiUrl('master'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: track.filename, originalname: track.originalname })

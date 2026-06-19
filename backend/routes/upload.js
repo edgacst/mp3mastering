@@ -35,7 +35,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB (Nginx client_max_body_size와 맞춤)
   fileFilter: (req, file, cb) => {
     file.originalname = fixEncoding(file.originalname);
     const ext = path.extname(file.originalname).toLowerCase();

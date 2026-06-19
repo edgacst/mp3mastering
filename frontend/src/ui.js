@@ -49,7 +49,10 @@ export function initUI() {
               <span class="stat-pill">True Peak <strong id="statPeak">—</strong> dBTP</span>
             </div>
           </div>
-          <audio id="previewAudio" controls preload="metadata" class="preview-audio"></audio>
+      <div class="preview-audio-stack">
+            <audio id="previewAudioOriginal" controls preload="auto" class="preview-audio preview-audio-slot"></audio>
+            <audio id="previewAudioMastered" controls preload="auto" class="preview-audio preview-audio-slot is-active-slot"></audio>
+          </div>
         </div>
       </div>
       <button id="masterBtn">마스터링 시작</button>
@@ -67,7 +70,7 @@ export function initUI() {
 
   let uploadedTracks = [];
   let previewMasterObjectUrl = null;
-  let previewOriginalUrl = null;
+  let previewOriginalObjectUrl = null;
   let previewMode = 'mastered';
   let previewStats = null;
   let previewPeaks = { original: null, mastered: null };
@@ -90,7 +93,8 @@ export function initUI() {
   const previewHint = document.getElementById('previewHint');
   const previewStatus = document.getElementById('previewStatus');
   const previewTrackName = document.getElementById('previewTrackName');
-  const previewAudio = document.getElementById('previewAudio');
+  const previewAudioOriginal = document.getElementById('previewAudioOriginal');
+  const previewAudioMastered = document.getElementById('previewAudioMastered');
   const waveformCanvas = document.getElementById('waveformCanvas');
   const previewTime = document.getElementById('previewTime');
   const statLufs = document.getElementById('statLufs');
@@ -125,19 +129,30 @@ export function initUI() {
     if (files.length) handleFiles(files);
   });
 
+  function getActivePreviewAudio() {
+    return previewMode === 'original' ? previewAudioOriginal : previewAudioMastered;
+  }
+
+  function bindPreviewAudioEvents(audio) {
+    audio.addEventListener('timeupdate', refreshWaveformProgress);
+    audio.addEventListener('loadedmetadata', refreshTimeLabel);
+    audio.addEventListener('seeked', refreshWaveformProgress);
+  }
+
+  bindPreviewAudioEvents(previewAudioOriginal);
+  bindPreviewAudioEvents(previewAudioMastered);
+
   btnModeOriginal.addEventListener('click', () => setPreviewMode('original'));
   btnModeMastered.addEventListener('click', () => setPreviewMode('mastered'));
 
-  previewAudio.addEventListener('timeupdate', refreshWaveformProgress);
-  previewAudio.addEventListener('loadedmetadata', refreshTimeLabel);
-  previewAudio.addEventListener('seeked', refreshWaveformProgress);
   window.addEventListener('resize', refreshWaveformProgress);
 
   waveformCanvas.addEventListener('click', (e) => {
-    if (!previewAudio.duration) return;
+    const audio = getActivePreviewAudio();
+    if (!audio.duration) return;
     const rect = waveformCanvas.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    previewAudio.currentTime = ratio * previewAudio.duration;
+    audio.currentTime = ratio * audio.duration;
     refreshWaveformProgress();
   });
 
@@ -217,12 +232,19 @@ export function initUI() {
       URL.revokeObjectURL(previewMasterObjectUrl);
       previewMasterObjectUrl = null;
     }
-    previewOriginalUrl = null;
+    if (previewOriginalObjectUrl) {
+      URL.revokeObjectURL(previewOriginalObjectUrl);
+      previewOriginalObjectUrl = null;
+    }
     previewStats = null;
     previewPeaks = { original: null, mastered: null };
     previewMode = 'mastered';
-    previewAudio.removeAttribute('src');
-    previewAudio.load();
+    previewAudioOriginal.removeAttribute('src');
+    previewAudioMastered.removeAttribute('src');
+    previewAudioOriginal.load();
+    previewAudioMastered.load();
+    previewAudioOriginal.classList.remove('is-active-slot');
+    previewAudioMastered.classList.add('is-active-slot');
     if (previewWrap) previewWrap.style.display = 'none';
     if (previewStatus) previewStatus.textContent = '';
     btnModeOriginal.classList.remove('is-active');
@@ -230,28 +252,31 @@ export function initUI() {
   }
 
   function setPreviewMode(mode) {
-    if (!previewOriginalUrl || !previewMasterObjectUrl) return;
-    const wasPlaying = !previewAudio.paused;
-    const ratio = previewAudio.duration ? previewAudio.currentTime / previewAudio.duration : 0;
+    if (!previewOriginalObjectUrl || !previewMasterObjectUrl) return;
+    const prev = getActivePreviewAudio();
+    const next = mode === 'original' ? previewAudioOriginal : previewAudioMastered;
+    const t = prev.currentTime || 0;
+    const wasPlaying = !prev.paused;
 
     previewMode = mode;
     btnModeOriginal.classList.toggle('is-active', mode === 'original');
     btnModeMastered.classList.toggle('is-active', mode === 'mastered');
+    previewAudioOriginal.classList.toggle('is-active-slot', mode === 'original');
+    previewAudioMastered.classList.toggle('is-active-slot', mode === 'mastered');
 
-    previewAudio.pause();
-    previewAudio.src = mode === 'original' ? previewOriginalUrl : previewMasterObjectUrl;
-    previewAudio.load();
+    prev.pause();
 
-    previewAudio.addEventListener(
-      'loadedmetadata',
-      () => {
-        if (previewAudio.duration) previewAudio.currentTime = ratio * previewAudio.duration;
-        if (wasPlaying) void previewAudio.play().catch(() => {});
-        updateStatsDisplay();
-        refreshWaveformProgress();
-      },
-      { once: true },
-    );
+    const applySeek = () => {
+      if (Number.isFinite(next.duration) && next.duration > 0) {
+        next.currentTime = Math.min(Math.max(0, t), Math.max(0, next.duration - 0.01));
+      }
+      if (wasPlaying) void next.play().catch(() => {});
+      updateStatsDisplay();
+      refreshWaveformProgress();
+    };
+
+    if (next.readyState >= 1) applySeek();
+    else next.addEventListener('loadedmetadata', applySeek, { once: true });
   }
 
   function updateStatsDisplay() {
@@ -266,8 +291,9 @@ export function initUI() {
   }
 
   function refreshTimeLabel() {
-    const cur = formatTime(previewAudio.currentTime);
-    const total = formatTime(previewAudio.duration);
+    const audio = getActivePreviewAudio();
+    const cur = formatTime(audio.currentTime);
+    const total = formatTime(audio.duration);
     previewTime.textContent = `${cur} / ${total}`;
   }
 
@@ -275,8 +301,16 @@ export function initUI() {
     refreshTimeLabel();
     const peaks = previewPeaks[previewMode];
     if (!peaks) return;
-    const ratio = previewAudio.duration ? previewAudio.currentTime / previewAudio.duration : 0;
+    const audio = getActivePreviewAudio();
+    const ratio = audio.duration ? audio.currentTime / audio.duration : 0;
     drawWaveform(waveformCanvas, peaks.peaks, ratio, previewMode === 'original' ? 'original' : 'master');
+  }
+
+  async function ensureLoggedIn() {
+    const res = await fetch('/api/auth/me', { credentials: 'include' });
+    if (res.ok) return true;
+    window.location.href = `/login?next=${encodeURIComponent('/mastering/')}`;
+    return false;
   }
 
   async function loadPreviewSample() {
@@ -290,10 +324,11 @@ export function initUI() {
         ? `여러 곡 업로드됨 — 샘플은 1번째 곡만 미리듣기·파형·LUFS 비교합니다.`
         : `토글로 원본·마스터링을 바꿔 들으며 음질 차이를 확인하세요.`;
     previewStatus.textContent = '샘플 마스터링·분석 중… (잠시만 기다려 주세요)';
-    previewAudio.removeAttribute('src');
+    previewAudioOriginal.removeAttribute('src');
+    previewAudioMastered.removeAttribute('src');
 
     try {
-      previewOriginalUrl = apiUrl(`upload/original/${encodeURIComponent(track.filename)}`);
+      const originalFetchUrl = apiUrl(`upload/original/${encodeURIComponent(track.filename)}`);
 
       const res = await fetch(apiUrl('master/preview'), {
         method: 'POST',
@@ -312,14 +347,22 @@ export function initUI() {
         }
       }
 
-      const blob = await res.blob();
+      const [origRes, masterBlob] = await Promise.all([
+        fetch(originalFetchUrl),
+        res.blob(),
+      ]);
+      if (!origRes.ok) throw new Error('원본 파일을 불러오지 못했습니다.');
+
+      const origBlob = await origRes.blob();
+      if (previewOriginalObjectUrl) URL.revokeObjectURL(previewOriginalObjectUrl);
       if (previewMasterObjectUrl) URL.revokeObjectURL(previewMasterObjectUrl);
-      previewMasterObjectUrl = URL.createObjectURL(blob);
+      previewOriginalObjectUrl = URL.createObjectURL(origBlob);
+      previewMasterObjectUrl = URL.createObjectURL(masterBlob);
 
       previewStatus.textContent = '파형 생성 중…';
       const [originalWave, masteredWave] = await Promise.all([
-        loadWaveformPeaks(previewOriginalUrl),
-        loadWaveformPeaks(blob),
+        loadWaveformPeaks(origBlob),
+        loadWaveformPeaks(masterBlob),
       ]);
       previewPeaks.original = originalWave;
       previewPeaks.mastered = masteredWave;
@@ -327,7 +370,10 @@ export function initUI() {
       previewMode = 'mastered';
       btnModeOriginal.classList.remove('is-active');
       btnModeMastered.classList.add('is-active');
-      previewAudio.src = previewMasterObjectUrl;
+      previewAudioOriginal.classList.remove('is-active-slot');
+      previewAudioMastered.classList.add('is-active-slot');
+      previewAudioOriginal.src = previewOriginalObjectUrl;
+      previewAudioMastered.src = previewMasterObjectUrl;
       updateStatsDisplay();
       refreshWaveformProgress();
       previewStatus.textContent = '원본 ↔ 마스터링 토글로 비교해 보세요.';
@@ -338,6 +384,7 @@ export function initUI() {
 
   masterBtn.addEventListener('click', async () => {
     if (!uploadedTracks.length) return;
+    if (!(await ensureLoggedIn())) return;
 
     fileInfo.style.display = 'none';
     downloadWrap.style.display = 'none';
@@ -375,8 +422,14 @@ export function initUI() {
     const res = await fetch(apiUrl('master'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ filename: track.filename, originalname: track.originalname }),
     });
+
+    if (res.status === 401) {
+      window.location.href = `/login?next=${encodeURIComponent('/mastering/')}`;
+      throw new Error('로그인이 필요합니다.');
+    }
 
     if (!res.ok) {
       throw new Error(await readApiError(res));

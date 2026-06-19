@@ -66,6 +66,9 @@ router.get('/original/:filename', (req, res) => {
   res.setHeader('Content-Type', 'audio/mpeg');
   res.setHeader('Content-Disposition', 'inline');
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Accept-Ranges', 'bytes');
+  const stat = fs.statSync(filePath);
+  res.setHeader('Content-Length', String(stat.size));
   fs.createReadStream(filePath).pipe(res);
 });
 

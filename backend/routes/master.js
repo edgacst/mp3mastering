@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { masterToFile } = require('../lib/audioMastering');
 const { analyzeLoudness } = require('../lib/audioAnalysis');
+const { requireVenysoundAuth } = require('../lib/requireAuth');
 
 const router = express.Router();
 
@@ -67,8 +68,8 @@ router.post('/preview', async (req, res) => {
   }
 });
 
-/** 전체 다운로드용 — 처리 후 원본·결과 임시 파일 삭제 */
-router.post('/', async (req, res) => {
+/** 전체 다운로드용 — 로그인 필요, 처리 후 원본·결과 임시 파일 삭제 */
+router.post('/', requireVenysoundAuth, async (req, res) => {
   const safeName = safeBasename(req.body.filename);
   const inputPath = resolveInput(safeName);
   if (!inputPath) {

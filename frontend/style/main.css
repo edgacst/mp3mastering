@@ -488,6 +488,28 @@ button:hover {
   color: #e2e8f0;
 }
 
+.guest-master-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  border-radius: 12px;
+  background: rgba(15, 30, 52, 0.65);
+  border: 1px solid rgba(103, 232, 249, 0.2);
+}
+
+.guest-master-notice a {
+  color: #67e8f9;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.guest-master-notice a:hover {
+  color: #fde68a;
+}
+
 .auto-control .intensity-label::after {
   content: ' · ON';
   margin-left: 0.35rem;

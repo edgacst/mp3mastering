@@ -59,8 +59,13 @@ export function initUI() {
           </div>
         </div>
       </div>
-      <button id="masterBtn">마스터링 시작</button>
-    </div>
+      <p id="guestMasterNotice" class="guest-master-notice">
+        미리듣기·비교는 <strong>로그인 없이</strong> 이용할 수 있습니다.
+        <strong>마스터링 시작(파일 받기)</strong>은
+        <a href="/login?next=%2Fmastering%2F">로그인</a> 또는
+        <a href="/register">회원가입</a> 후 이용해 주세요.
+      </p>
+      <button id="masterBtn" type="button">마스터링 시작</button> </div>
     <div id="progressWrap" style="display:none; margin-top:1rem;">
       <p id="statusText">처리 중...</p>
       <p id="elapsedText" style="margin:0.25rem 0 0.5rem; font-size:0.9rem; opacity:0.85;">경과 시간: 0초</p>
@@ -79,6 +84,7 @@ export function initUI() {
   let previewStats = null;
   let previewPeaks = { original: null, mastered: null };
   let previewLoadToken = 0;
+  let isLoggedIn = false;
 
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
@@ -87,6 +93,7 @@ export function initUI() {
   const fileSize = document.getElementById('fileSize');
   const fileList = document.getElementById('fileList');
   const masterBtn = document.getElementById('masterBtn');
+  const guestMasterNotice = document.getElementById('guestMasterNotice');
   const progressWrap = document.getElementById('progressWrap');
   const progressBar = document.getElementById('progressBar');
   const statusText = document.getElementById('statusText');
@@ -230,7 +237,7 @@ export function initUI() {
       .map((track, idx) => `${idx + 1}. ${track.originalname} (${(track.size / 1024).toFixed(1)} KB)`)
       .join('<br/>');
     fileList.innerHTML = items;
-    masterBtn.textContent = `마스터링 시작 (${uploadedTracks.length}곡)`;
+    updateMasterBtnLabel();
   }
 
   function clearPreview() {
@@ -317,10 +324,42 @@ export function initUI() {
     if (previewStatus) previewStatus.classList.toggle('is-waiting', isWaiting);
   }
 
+  async function refreshAuthState() {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      isLoggedIn = res.ok;
+    } catch {
+      isLoggedIn = false;
+    }
+    if (guestMasterNotice) guestMasterNotice.style.display = isLoggedIn ? 'none' : 'block';
+    updateMasterBtnLabel();
+  }
+
+  function updateMasterBtnLabel() {
+    if (!masterBtn) return;
+    const count = uploadedTracks.length;
+    const suffix = count ? ` (${count}곡)` : '';
+    if (isLoggedIn) {
+      masterBtn.textContent = `마스터링 시작${suffix}`;
+    } else {
+      masterBtn.textContent = `마스터링 시작${suffix} — 로그인 필요`;
+    }
+  }
+
   async function ensureLoggedIn() {
     const res = await fetch('/api/auth/me', { credentials: 'include' });
-    if (res.ok) return true;
-    window.location.href = `/login?next=${encodeURIComponent('/mastering/')}`;
+    if (res.ok) {
+      isLoggedIn = true;
+      return true;
+    }
+    isLoggedIn = false;
+    updateMasterBtnLabel();
+    const goLogin = window.confirm(
+      '마스터링 파일을 받으려면 로그인(회원가입)이 필요합니다.\n\n로그인 페이지로 이동할까요?',
+    );
+    if (goLogin) {
+      window.location.href = `/login?next=${encodeURIComponent('/mastering/')}`;
+    }
     return false;
   }
 
@@ -535,4 +574,6 @@ export function initUI() {
   function ensureMp3Extension(name) {
     return /\.mp3$/i.test(name) ? name : `${name}.mp3`;
   }
+
+  void refreshAuthState();
 }

@@ -32,6 +32,11 @@ echo ""
 
 echo "[4/6] frontend build (base=/mastering/)..."
 npm run build
+if [ ! -f frontend/dist/index.html ]; then
+  echo "오류: frontend/dist/index.html 없음 — vite build 실패"
+  exit 1
+fi
+echo "빌드 OK: $(ls -la frontend/dist | head -5)"
 echo ""
 
 echo "[5/6] backend install..."

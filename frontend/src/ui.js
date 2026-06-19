@@ -1,5 +1,21 @@
 const apiUrl = (path) => `${import.meta.env.BASE_URL}api/${path}`.replace(/([^:]\/)\/+/g, '$1');
 
+async function readApiError(res) {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    return data.error || data.message || `HTTP ${res.status}`;
+  } catch {
+    if (res.status === 504 || /504|Gateway Time-out/i.test(text)) {
+      return '처리 시간 초과(nginx 타임아웃). deploy/nginx.conf 의 proxy_read_timeout 600s 반영 후 reload nginx 하세요.';
+    }
+    if (text.trimStart().startsWith('<')) {
+      return `서버가 HTML 오류 페이지를 반환했습니다(HTTP ${res.status}). pm2 logs mastering-app 확인.`;
+    }
+    return text.slice(0, 180) || `HTTP ${res.status}`;
+  }
+}
+
 export function initUI() {
   const app = document.getElementById('app');
 
@@ -116,8 +132,8 @@ export function initUI() {
     formData.append('file', file);
 
     const res = await fetch(apiUrl('upload'), { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await readApiError(res));
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '업로드 실패');
 
     return {
       filename: data.filename,
@@ -181,8 +197,7 @@ export function initUI() {
     });
 
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || '마스터링 실패');
+      throw new Error(await readApiError(res));
     }
 
     const blob = await res.blob();

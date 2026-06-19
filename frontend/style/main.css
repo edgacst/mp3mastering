@@ -1,0 +1,301 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap');
+
+:root {
+  --bg-1: #0b1320;
+  --bg-2: #15233a;
+  --bg-3: #23395b;
+  --card: rgba(9, 19, 35, 0.76);
+  --card-line: rgba(147, 197, 253, 0.22);
+  --text: #e8eef8;
+  --muted: #9fb3cf;
+  --accent: #22d3ee;
+  --accent-2: #f59e0b;
+  --ok: #34d399;
+  --shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'IBM Plex Sans KR', 'Malgun Gothic', sans-serif;
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background:
+    radial-gradient(60rem 30rem at 90% -10%, rgba(245, 158, 11, 0.24), transparent 60%),
+    radial-gradient(45rem 25rem at -10% 10%, rgba(34, 211, 238, 0.24), transparent 50%),
+    linear-gradient(140deg, var(--bg-1), var(--bg-2) 45%, var(--bg-3));
+  padding: 26px 12px 42px;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: auto;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  z-index: -1;
+  filter: blur(28px);
+  opacity: 0.45;
+}
+
+body::before {
+  left: -70px;
+  bottom: -100px;
+  background: #22d3ee;
+}
+
+body::after {
+  right: -90px;
+  top: -110px;
+  background: #f59e0b;
+}
+
+header.glass,
+.container.glass {
+  width: min(960px, 100%);
+  border: 1px solid var(--card-line);
+  border-radius: 24px;
+  background: var(--card);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow: var(--shadow);
+  animation: rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.guide-panel.glass {
+  width: min(960px, 100%);
+  margin-top: 14px;
+  border: 1px solid var(--card-line);
+  border-radius: 20px;
+  background: rgba(10, 21, 38, 0.72);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  animation: rise-in 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.guide-panel h2 {
+  margin: 0 0 10px;
+  font-family: 'Outfit', 'IBM Plex Sans KR', sans-serif;
+  font-size: 1.12rem;
+  letter-spacing: 0.01em;
+  color: #7dd3fc;
+}
+
+.guide-panel ol {
+  margin: 0;
+  padding-left: 20px;
+  color: #d7e8fa;
+}
+
+.guide-panel li {
+  margin-bottom: 8px;
+  line-height: 1.55;
+}
+
+.guide-panel li:last-child {
+  margin-bottom: 0;
+}
+
+header.glass {
+  padding: 22px 26px;
+  margin-bottom: 14px;
+}
+
+.container.glass {
+  padding: 22px;
+}
+
+h1 {
+  margin: 0;
+  font-family: 'Outfit', 'IBM Plex Sans KR', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  font-size: clamp(1.35rem, 2.8vw, 2.05rem);
+  background: linear-gradient(92deg, #67e8f9, #facc15 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+#app {
+  display: grid;
+  gap: 14px;
+}
+
+.upload-area {
+  border: 1.5px dashed rgba(103, 232, 249, 0.7);
+  border-radius: 18px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  color: #d9f6fb;
+  background: linear-gradient(145deg, rgba(34, 211, 238, 0.12), rgba(245, 158, 11, 0.1));
+  transition: transform 180ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.upload-area p {
+  margin: 0;
+  line-height: 1.55;
+  font-size: 1.02rem;
+}
+
+.upload-area:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245, 158, 11, 0.82);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
+#fileInfo,
+#progressWrap,
+#downloadWrap {
+  border-radius: 16px;
+  border: 1px solid rgba(159, 179, 207, 0.24);
+  background: rgba(12, 22, 38, 0.65);
+  padding: 14px 16px;
+}
+
+#fileName,
+#fileSize,
+#statusText,
+#downloadTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+#fileSize,
+#elapsedText {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+#fileList {
+  margin-top: 10px;
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: #dce8f7;
+}
+
+button {
+  margin-top: 10px;
+  border: none;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-family: 'Outfit', 'IBM Plex Sans KR', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 0.97rem;
+  color: #051015;
+  background: linear-gradient(90deg, var(--accent), #67e8f9 45%, var(--accent-2));
+  cursor: pointer;
+  transition: transform 170ms ease, box-shadow 170ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(34, 211, 238, 0.25);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(159, 179, 207, 0.24);
+  overflow: hidden;
+}
+
+.progress-bar div {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #22d3ee 0%, #34d399 35%, #f59e0b 100%);
+  position: relative;
+  transition: width 260ms ease;
+}
+
+.progress-bar div::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 1.6s linear infinite;
+}
+
+#downloadList {
+  margin-top: 10px;
+}
+
+#downloadList a {
+  display: inline-block;
+  color: #d7f4ff;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(103, 232, 249, 0.6);
+  padding-bottom: 2px;
+}
+
+#downloadList a:hover {
+  color: #fde68a;
+}
+
+.download-row {
+  margin-bottom: 0.55rem;
+  animation: rise-in 340ms ease both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 760px) {
+  body {
+    padding: 14px 10px 26px;
+  }
+
+  header.glass {
+    padding: 16px 14px;
+    border-radius: 18px;
+  }
+
+  .container.glass {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .guide-panel.glass {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .upload-area {
+    padding: 20px 12px;
+  }
+
+  button {
+    width: 100%;
+  }
+}

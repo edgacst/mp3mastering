@@ -207,6 +207,7 @@ export function initUI() {
 
   async function uploadSingleFile(file) {
     const formData = new FormData();
+    formData.append('displayName', file.name);
     formData.append('file', file);
 
     const res = await fetch(apiUrl('upload'), { method: 'POST', body: formData });

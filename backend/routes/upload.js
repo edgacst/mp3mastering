@@ -57,6 +57,13 @@ router.post('/', upload.single('file'), (req, res) => {
 });
 
 router.use((err, req, res, next) => {
+  const msg = String(err.message || err);
+  if (err.code === 'ECONNABORTED' || err.type === 'request.aborted' || /request aborted/i.test(msg)) {
+    if (!res.headersSent) {
+      return res.status(499).json({ error: '업로드가 중단되었습니다. 다시 시도해 주세요.' });
+    }
+    return;
+  }
   res.status(400).json({ error: err.message });
 });
 

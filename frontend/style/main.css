@@ -356,6 +356,20 @@ button:hover {
   color: #fde68a;
 }
 
+.preview-status.is-waiting {
+  animation: preview-wait-blink 1.1s ease-in-out infinite;
+}
+
+@keyframes preview-wait-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 .preview-studio {
   display: flex;
   flex-direction: column;

@@ -269,6 +269,7 @@ export function initUI() {
     previewAudioMastered.classList.add('is-active-slot');
     if (previewWrap) previewWrap.style.display = 'none';
     if (previewStatus) previewStatus.textContent = '';
+    setPreviewWaiting(false);
     btnModeOriginal.classList.remove('is-active');
     btnModeMastered.classList.add('is-active');
   }
@@ -328,6 +329,10 @@ export function initUI() {
     drawWaveform(waveformCanvas, peaks.peaks, ratio, previewMode === 'original' ? 'original' : 'master');
   }
 
+  function setPreviewWaiting(isWaiting) {
+    if (previewStatus) previewStatus.classList.toggle('is-waiting', isWaiting);
+  }
+
   async function ensureLoggedIn() {
     const res = await fetch('/api/auth/me', { credentials: 'include' });
     if (res.ok) return true;
@@ -347,6 +352,7 @@ export function initUI() {
         ? `여러 곡 업로드됨 — 샘플은 1번째 곡만 미리듣기·파형·LUFS 비교합니다.`
         : `토글로 원본·마스터링을 바꿔 들으며 음질 차이를 확인하세요.`;
     previewStatus.textContent = '샘플 마스터링·분석 중… (잠시만 기다려 주세요)';
+    setPreviewWaiting(true);
     previewAudioOriginal.removeAttribute('src');
     previewAudioMastered.removeAttribute('src');
 
@@ -389,6 +395,7 @@ export function initUI() {
       previewMasterObjectUrl = URL.createObjectURL(masterBlob);
 
       previewStatus.textContent = '파형 생성 중…';
+      setPreviewWaiting(true);
       const [originalWave, masteredWave] = await Promise.all([
         loadWaveformPeaks(origBlob),
         loadWaveformPeaks(masterBlob),
@@ -406,9 +413,11 @@ export function initUI() {
       updateStatsDisplay();
       refreshWaveformProgress();
       previewStatus.textContent = '원본 ↔ 마스터링 토글로 비교해 보세요.';
+      setPreviewWaiting(false);
     } catch (err) {
       if (loadToken !== previewLoadToken) return;
       previewStatus.textContent = '미리듣기 생성 실패: ' + err.message;
+      setPreviewWaiting(false);
     }
   }
 

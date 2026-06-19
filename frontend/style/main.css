@@ -110,6 +110,39 @@ header.glass {
   margin-bottom: 14px;
 }
 
+header.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(103, 232, 249, 0.35);
+  background: rgba(34, 211, 238, 0.08);
+  color: #67e8f9;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.home-link:hover {
+  background: rgba(34, 211, 238, 0.16);
+  border-color: rgba(103, 232, 249, 0.55);
+  color: #a5f3fc;
+}
+
+header.site-header h1 {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
 .container.glass {
   padding: 22px;
 }

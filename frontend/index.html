@@ -11,14 +11,34 @@
     <h1>venysound mp3 마스터링 스튜디오</h1>
   </header>
   <main id="app" class="container glass"></main>
-  <section class="guide-panel glass" aria-label="사용법 안내">
-    <h2>사용법 안내</h2>
-    <ol>
-      <li>업로드 박스를 클릭하거나 파일을 드래그해서 MP3를 선택하세요. 여러 곡도 한 번에 가능합니다.</li>
-      <li>업로드가 끝나면 곡 목록을 확인하고 마스터링 시작 버튼을 누르세요.</li>
-      <li>진행률과 경과 시간을 확인한 뒤, 완료되면 곡별 다운로드 링크를 눌러 저장하세요.</li>
-      <li>파일명은 원본 제목을 유지하며, 서버 처리 후 자동으로 내려받을 수 있습니다.</li>
-    </ol>
+  <section class="guide-panel glass" aria-label="안내">
+    <div class="guide-tabs" role="tablist" aria-label="안내 탭">
+      <button type="button" class="guide-tab is-active" role="tab" id="tab-usage" aria-selected="true" aria-controls="panel-usage" data-tab="usage">사용안내</button>
+      <button type="button" class="guide-tab" role="tab" id="tab-about" aria-selected="false" aria-controls="panel-about" data-tab="about">mp3마스터링이란?</button>
+    </div>
+
+    <div class="guide-tab-panel is-active" role="tabpanel" id="panel-usage" aria-labelledby="tab-usage" data-panel="usage">
+      <h2>사용법 안내</h2>
+      <ol>
+        <li>업로드 박스를 클릭하거나 파일을 드래그해서 MP3를 선택하세요. 여러 곡도 한 번에 가능합니다.</li>
+        <li>업로드가 끝나면 곡 목록을 확인하고 마스터링 시작 버튼을 누르세요.</li>
+        <li>진행률과 경과 시간을 확인한 뒤, 완료되면 곡별 다운로드 링크를 눌러 저장하세요.</li>
+        <li>파일명은 원본 제목을 유지하며, 서버 처리 후 자동으로 내려받을 수 있습니다.</li>
+      </ol>
+    </div>
+
+    <div class="guide-tab-panel" role="tabpanel" id="panel-about" aria-labelledby="tab-about" data-panel="about" hidden>
+      <h2>mp3마스터링이란?</h2>
+      <p class="guide-lead">
+        MP3 마스터링은 모든 오디오 제작 과정의 최종 단계로, 완성된 음악을 스트리밍 플랫폼이나 청취 기기에 맞게 최적화하고 음질과 음량을 가다듬는 작업입니다.
+      </p>
+      <ol>
+        <li><strong>음량 최적화 (라우드니스):</strong> 상업용 음원 규격과 플랫폼의 기준에 맞춰 적절한 음압(볼륨)을 확보합니다.</li>
+        <li><strong>사운드 밸런스 조정:</strong> EQ, 컴프레서 등을 사용하여 주파수 대역을 정리하고, 곡 전체의 깊이와 입체감을 더합니다.</li>
+        <li><strong>재생 호환성 확보:</strong> 스마트폰, 자동차 스피커, 대형 클럽 등 어떤 기기에서 재생해도 균일하고 좋은 소리가 나도록 다듬습니다.</li>
+        <li><strong>앨범 통일성:</strong> 여러 곡이 수록된 앨범의 경우, 곡 간의 볼륨 차이나 음색 톤을 맞춰 청취자가 이질감을 느끼지 않게 합니다.</li>
+      </ol>
+    </div>
   </section>
   <script type="module" src="/src/main.js"></script>
 </body>

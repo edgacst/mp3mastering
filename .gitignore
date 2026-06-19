@@ -4,5 +4,6 @@ backend/node_modules/
 frontend/dist/
 backend/uploads/
 backend/mastered/
+backend/preview/
 .env
 .DS_Store

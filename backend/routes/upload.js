@@ -56,6 +56,19 @@ router.post('/', upload.single('file'), (req, res) => {
   });
 });
 
+/** 미리듣기용 원본 스트림 (업로드 파일 유지) */
+router.get('/original/:filename', (req, res) => {
+  const safeName = path.basename(req.params.filename || '');
+  const filePath = path.join(uploadDir, safeName);
+  if (!safeName || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+  }
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'no-store');
+  fs.createReadStream(filePath).pipe(res);
+});
+
 router.use((err, req, res, next) => {
   const msg = String(err.message || err);
   if (err.code === 'ECONNABORTED' || err.type === 'request.aborted' || /request aborted/i.test(msg)) {

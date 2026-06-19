@@ -28,6 +28,21 @@ export function initUI() {
       <p id="fileName"></p>
       <p id="fileSize"></p>
       <div id="fileList" style="margin:0.75rem 0;"></div>
+      <div id="previewWrap" class="preview-wrap" style="display:none;" aria-live="polite">
+        <p id="previewTitle" class="preview-title">음질 비교 미리듣기</p>
+        <p id="previewHint" class="preview-hint"></p>
+        <p id="previewStatus" class="preview-status"></p>
+        <div class="preview-grid">
+          <div class="preview-col">
+            <span class="preview-label preview-label-original">원본 음질</span>
+            <audio id="previewOriginal" controls preload="metadata" class="preview-audio"></audio>
+          </div>
+          <div class="preview-col">
+            <span class="preview-label preview-label-master">마스터링 음질</span>
+            <audio id="previewMastered" controls preload="metadata" class="preview-audio"></audio>
+          </div>
+        </div>
+      </div>
       <button id="masterBtn">마스터링 시작</button>
     </div>
     <div id="progressWrap" style="display:none; margin-top:1rem;">
@@ -42,6 +57,7 @@ export function initUI() {
   `;
 
   let uploadedTracks = [];
+  let previewMasterObjectUrl = null;
 
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
@@ -57,6 +73,12 @@ export function initUI() {
   const downloadWrap = document.getElementById('downloadWrap');
   const downloadTitle = document.getElementById('downloadTitle');
   const downloadList = document.getElementById('downloadList');
+  const previewWrap = document.getElementById('previewWrap');
+  const previewTitle = document.getElementById('previewTitle');
+  const previewHint = document.getElementById('previewHint');
+  const previewStatus = document.getElementById('previewStatus');
+  const previewOriginal = document.getElementById('previewOriginal');
+  const previewMastered = document.getElementById('previewMastered');
 
   let elapsedTimer = null;
   let elapsedStart = 0;
@@ -96,6 +118,7 @@ export function initUI() {
 
   async function uploadFiles(files) {
     uploadedTracks = [];
+    clearPreview();
     progressWrap.style.display = 'block';
     fileInfo.style.display = 'none';
     downloadWrap.style.display = 'none';
@@ -120,6 +143,7 @@ export function initUI() {
       renderUploadedList();
       progressWrap.style.display = 'none';
       fileInfo.style.display = 'block';
+      void loadPreviewSample();
     } catch (err) {
       stopElapsedTimer();
       progressWrap.style.display = 'none';
@@ -152,6 +176,68 @@ export function initUI() {
       .join('<br/>');
     fileList.innerHTML = items;
     masterBtn.textContent = `마스터링 시작 (${uploadedTracks.length}곡)`;
+  }
+
+  function clearPreview() {
+    if (previewMasterObjectUrl) {
+      URL.revokeObjectURL(previewMasterObjectUrl);
+      previewMasterObjectUrl = null;
+    }
+    if (previewOriginal) previewOriginal.removeAttribute('src');
+    if (previewMastered) previewMastered.removeAttribute('src');
+    if (previewWrap) previewWrap.style.display = 'none';
+    if (previewStatus) previewStatus.textContent = '';
+  }
+
+  function wireExclusiveAudioPlayback(a, b) {
+    if (a.dataset.abWired === '1') return;
+    a.dataset.abWired = '1';
+    b.dataset.abWired = '1';
+    a.addEventListener('play', () => {
+      if (!b.paused) b.pause();
+    });
+    b.addEventListener('play', () => {
+      if (!a.paused) a.pause();
+    });
+  }
+
+  /** 여러 곡이어도 1번째 곡만 샘플 마스터링 후 A/B 미리듣기 */
+  async function loadPreviewSample() {
+    if (!uploadedTracks.length || !previewWrap) return;
+
+    const track = uploadedTracks[0];
+    previewWrap.style.display = 'block';
+    previewTitle.textContent = '음질 비교 미리듣기';
+    previewHint.textContent =
+      uploadedTracks.length > 1
+        ? `여러 곡 업로드됨 — 샘플은 1번째 곡「${track.originalname}」만 미리듣기합니다.`
+        : `「${track.originalname}」 원본 vs 마스터링 결과를 비교해 보세요.`;
+    previewStatus.textContent = '샘플 마스터링 생성 중… (잠시만 기다려 주세요)';
+    previewOriginal.removeAttribute('src');
+    previewMastered.removeAttribute('src');
+
+    try {
+      const originalSrc = apiUrl(`upload/original/${encodeURIComponent(track.filename)}`);
+      previewOriginal.src = originalSrc;
+
+      const res = await fetch(apiUrl('master/preview'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: track.filename, originalname: track.originalname }),
+      });
+
+      if (!res.ok) throw new Error(await readApiError(res));
+
+      const blob = await res.blob();
+      if (previewMasterObjectUrl) URL.revokeObjectURL(previewMasterObjectUrl);
+      previewMasterObjectUrl = URL.createObjectURL(blob);
+      previewMastered.src = previewMasterObjectUrl;
+
+      wireExclusiveAudioPlayback(previewOriginal, previewMastered);
+      previewStatus.textContent = '재생 버튼을 눌러 원본·마스터링 음질을 비교해 보세요.';
+    } catch (err) {
+      previewStatus.textContent = '미리듣기 생성 실패: ' + err.message;
+    }
   }
 
   masterBtn.addEventListener('click', async () => {

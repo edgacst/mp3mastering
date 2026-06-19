@@ -30,6 +30,15 @@ export function initUI() {
       <p id="fileName"></p>
       <p id="fileSize"></p>
       <div id="fileList" style="margin:0.75rem 0;"></div>
+      <div class="intensity-control" id="intensityControl">
+        <span class="intensity-label">마스터링 강도</span>
+        <div class="ab-toggle intensity-toggle" role="group" aria-label="마스터링 강도">
+          <button type="button" class="ab-toggle-btn is-active" data-intensity="light">약함</button>
+          <button type="button" class="ab-toggle-btn" data-intensity="medium">보통</button>
+          <button type="button" class="ab-toggle-btn" data-intensity="strong">강함</button>
+        </div>
+        <p class="intensity-hint">약함이 기본입니다. 미리듣기로 비교한 뒤 강도를 바꿀 수 있습니다.</p>
+      </div>
       <div id="previewWrap" class="preview-wrap" style="display:none;" aria-live="polite">
         <p id="previewHint" class="preview-hint"></p>
         <p id="previewStatus" class="preview-status"></p>
@@ -74,6 +83,8 @@ export function initUI() {
   let previewMode = 'mastered';
   let previewStats = null;
   let previewPeaks = { original: null, mastered: null };
+  let masteringIntensity = 'light';
+  let previewLoadToken = 0;
 
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
@@ -101,6 +112,7 @@ export function initUI() {
   const statPeak = document.getElementById('statPeak');
   const btnModeOriginal = document.getElementById('btnModeOriginal');
   const btnModeMastered = document.getElementById('btnModeMastered');
+  const intensityButtons = Array.from(document.querySelectorAll('[data-intensity]'));
 
   let elapsedTimer = null;
   let elapsedStart = 0;
@@ -144,6 +156,16 @@ export function initUI() {
 
   btnModeOriginal.addEventListener('click', () => setPreviewMode('original'));
   btnModeMastered.addEventListener('click', () => setPreviewMode('mastered'));
+
+  intensityButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.intensity;
+      if (!next || next === masteringIntensity) return;
+      masteringIntensity = next;
+      intensityButtons.forEach((b) => b.classList.toggle('is-active', b.dataset.intensity === next));
+      if (uploadedTracks.length) void loadPreviewSample();
+    });
+  });
 
   window.addEventListener('resize', refreshWaveformProgress);
 
@@ -316,6 +338,7 @@ export function initUI() {
   async function loadPreviewSample() {
     if (!uploadedTracks.length || !previewWrap) return;
 
+    const loadToken = ++previewLoadToken;
     const track = uploadedTracks[0];
     previewWrap.style.display = 'block';
     previewTrackName.textContent = track.originalname;
@@ -333,10 +356,15 @@ export function initUI() {
       const res = await fetch(apiUrl('master/preview'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: track.filename, originalname: track.originalname }),
+        body: JSON.stringify({
+          filename: track.filename,
+          originalname: track.originalname,
+          intensity: masteringIntensity,
+        }),
       });
 
       if (!res.ok) throw new Error(await readApiError(res));
+      if (loadToken !== previewLoadToken) return;
 
       const statsHeader = res.headers.get('X-Preview-Stats');
       if (statsHeader) {
@@ -352,6 +380,7 @@ export function initUI() {
         res.blob(),
       ]);
       if (!origRes.ok) throw new Error('원본 파일을 불러오지 못했습니다.');
+      if (loadToken !== previewLoadToken) return;
 
       const origBlob = await origRes.blob();
       if (previewOriginalObjectUrl) URL.revokeObjectURL(previewOriginalObjectUrl);
@@ -378,6 +407,7 @@ export function initUI() {
       refreshWaveformProgress();
       previewStatus.textContent = '원본 ↔ 마스터링 토글로 비교해 보세요.';
     } catch (err) {
+      if (loadToken !== previewLoadToken) return;
       previewStatus.textContent = '미리듣기 생성 실패: ' + err.message;
     }
   }
@@ -423,7 +453,11 @@ export function initUI() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ filename: track.filename, originalname: track.originalname }),
+      body: JSON.stringify({
+        filename: track.filename,
+        originalname: track.originalname,
+        intensity: masteringIntensity,
+      }),
     });
 
     if (res.status === 401) {

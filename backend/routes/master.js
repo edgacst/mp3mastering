@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { masterToFile } = require('../lib/audioMastering');
+const { masterToFile, normalizeIntensity } = require('../lib/audioMastering');
 const { analyzeLoudness } = require('../lib/audioAnalysis');
 const { requireVenysoundAuth } = require('../lib/requireAuth');
 
@@ -48,11 +48,12 @@ router.post('/preview', async (req, res) => {
   }
 
   const displayName = req.body.originalname || safeName;
+  const intensity = normalizeIntensity(req.body.intensity);
   const outputPath = path.join(previewDir, `preview_${safeName}`);
 
   try {
     const originalStats = await analyzeLoudness(inputPath);
-    await masterToFile(inputPath, outputPath);
+    await masterToFile(inputPath, outputPath, intensity);
     const masteredStats = await analyzeLoudness(outputPath);
     res.setHeader(
       'X-Preview-Stats',
@@ -77,10 +78,11 @@ router.post('/', requireVenysoundAuth, async (req, res) => {
   }
 
   const displayName = req.body.originalname || safeName;
+  const intensity = normalizeIntensity(req.body.intensity);
   const outputPath = path.join(masteredDir, 'mastered_' + safeName);
 
   try {
-    await masterToFile(inputPath, outputPath);
+    await masterToFile(inputPath, outputPath, intensity);
     streamMp3File(res, outputPath, { inline: false, displayName, safeName });
     fs.unlink(inputPath, () => {});
   } catch (err) {

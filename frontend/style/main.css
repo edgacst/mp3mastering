@@ -457,6 +457,34 @@ button:hover {
   font-weight: 700;
 }
 
+.intensity-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0.75rem 0 1rem;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 30, 52, 0.55);
+  border: 1px solid rgba(103, 232, 249, 0.15);
+}
+
+.intensity-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.intensity-toggle {
+  align-self: flex-start;
+}
+
+.intensity-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .preview-audio-stack {
   position: relative;
   min-height: 40px;

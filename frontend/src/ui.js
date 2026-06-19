@@ -30,14 +30,9 @@ export function initUI() {
       <p id="fileName"></p>
       <p id="fileSize"></p>
       <div id="fileList" style="margin:0.75rem 0;"></div>
-      <div class="intensity-control" id="intensityControl">
-        <span class="intensity-label">마스터링 강도</span>
-        <div class="ab-toggle intensity-toggle" role="group" aria-label="마스터링 강도">
-          <button type="button" class="ab-toggle-btn is-active" data-intensity="light">약함</button>
-          <button type="button" class="ab-toggle-btn" data-intensity="medium">보통</button>
-          <button type="button" class="ab-toggle-btn" data-intensity="strong">강함</button>
-        </div>
-        <p class="intensity-hint">약함이 기본입니다. 미리듣기로 비교한 뒤 강도를 바꿀 수 있습니다.</p>
+      <div class="intensity-control auto-control" id="autoControl">
+        <span class="intensity-label">자동 마스터링</span>
+        <p class="intensity-hint">원본 음량(LUFS)과 조용한 구간 노이즈를 분석해, 크기·노이즈·피크를 자동으로 맞춥니다. 별도 조절은 필요 없습니다.</p>
       </div>
       <div id="previewWrap" class="preview-wrap" style="display:none;" aria-live="polite">
         <p id="previewHint" class="preview-hint"></p>
@@ -83,7 +78,6 @@ export function initUI() {
   let previewMode = 'mastered';
   let previewStats = null;
   let previewPeaks = { original: null, mastered: null };
-  let masteringIntensity = 'light';
   let previewLoadToken = 0;
 
   const uploadArea = document.getElementById('uploadArea');
@@ -112,7 +106,6 @@ export function initUI() {
   const statPeak = document.getElementById('statPeak');
   const btnModeOriginal = document.getElementById('btnModeOriginal');
   const btnModeMastered = document.getElementById('btnModeMastered');
-  const intensityButtons = Array.from(document.querySelectorAll('[data-intensity]'));
 
   let elapsedTimer = null;
   let elapsedStart = 0;
@@ -156,16 +149,6 @@ export function initUI() {
 
   btnModeOriginal.addEventListener('click', () => setPreviewMode('original'));
   btnModeMastered.addEventListener('click', () => setPreviewMode('mastered'));
-
-  intensityButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const next = btn.dataset.intensity;
-      if (!next || next === masteringIntensity) return;
-      masteringIntensity = next;
-      intensityButtons.forEach((b) => b.classList.toggle('is-active', b.dataset.intensity === next));
-      if (uploadedTracks.length) void loadPreviewSample();
-    });
-  });
 
   window.addEventListener('resize', refreshWaveformProgress);
 
@@ -365,7 +348,7 @@ export function initUI() {
         body: JSON.stringify({
           filename: track.filename,
           originalname: track.originalname,
-          intensity: masteringIntensity,
+          intensity: 'auto',
         }),
       });
 
@@ -413,6 +396,9 @@ export function initUI() {
       updateStatsDisplay();
       refreshWaveformProgress();
       previewStatus.textContent = '원본 ↔ 마스터링 토글로 비교해 보세요.';
+      if (previewStats?.auto?.targetLufs != null && previewStats?.original?.lufs != null) {
+        previewHint.textContent = `자동 분석: 원본 ${previewStats.original.lufs} LUFS → 목표 약 ${previewStats.auto.targetLufs} LUFS (원본에 맞춤)`;
+      }
       setPreviewWaiting(false);
     } catch (err) {
       if (loadToken !== previewLoadToken) return;
@@ -465,7 +451,7 @@ export function initUI() {
       body: JSON.stringify({
         filename: track.filename,
         originalname: track.originalname,
-        intensity: masteringIntensity,
+        intensity: 'auto',
       }),
     });
 

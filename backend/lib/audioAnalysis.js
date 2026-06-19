@@ -55,4 +55,27 @@ async function analyzeLoudness(filePath) {
   }
 }
 
-module.exports = { analyzeLoudness };
+/** 인트로 등 조용 구간 RMS (Overall, dB) */
+async function analyzeQuietRms(filePath, startSec = 0, durationSec = 5) {
+  const stderr = await runFfmpeg([
+    '-hide_banner',
+    '-i',
+    filePath,
+    '-ss',
+    String(startSec),
+    '-t',
+    String(durationSec),
+    '-af',
+    'astats=metadata=0:reset=1',
+    '-f',
+    'null',
+    '-',
+  ]);
+
+  const matches = [...stderr.matchAll(/RMS level dB:\s*([-\d.]+)/g)];
+  if (!matches.length) return null;
+  const n = Number(matches[matches.length - 1][1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+module.exports = { analyzeLoudness, analyzeQuietRms };

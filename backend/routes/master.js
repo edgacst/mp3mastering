@@ -53,11 +53,11 @@ router.post('/preview', async (req, res) => {
 
   try {
     const originalStats = await analyzeLoudness(inputPath);
-    await masterToFile(inputPath, outputPath, intensity);
+    const autoMeta = await masterToFile(inputPath, outputPath, intensity);
     const masteredStats = await analyzeLoudness(outputPath);
     res.setHeader(
       'X-Preview-Stats',
-      JSON.stringify({ original: originalStats, mastered: masteredStats }),
+      JSON.stringify({ original: originalStats, mastered: masteredStats, auto: autoMeta }),
     );
     streamMp3File(res, outputPath, { inline: true, displayName, safeName });
   } catch (err) {

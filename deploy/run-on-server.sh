@@ -18,23 +18,27 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[1/5] git pull..."
+echo "[1/6] git pull..."
 git pull origin main
 echo ""
 
-echo "[2/5] npm install (root + frontend build deps)..."
+echo "[2/6] npm install (root)..."
 npm install
 echo ""
 
-echo "[3/5] frontend build (base=/mastering/)..."
+echo "[3/6] npm install (frontend — vite 등 빌드 도구)..."
+npm --prefix frontend install --include=dev
+echo ""
+
+echo "[4/6] frontend build (base=/mastering/)..."
 npm run build
 echo ""
 
-echo "[4/5] backend install..."
+echo "[5/6] backend install..."
 npm --prefix backend install --omit=dev
 echo ""
 
-echo "[5/5] PM2 restart mastering-app..."
+echo "[6/6] PM2 restart mastering-app..."
 if pm2 describe mastering-app >/dev/null 2>&1; then
   PORT="$PORT" pm2 restart mastering-app --update-env
 else

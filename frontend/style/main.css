@@ -336,6 +336,29 @@ button:hover {
   animation: rise-in 340ms ease both;
 }
 
+.download-cache-hint {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.linkish-btn {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkish-btn:hover {
+  color: #fde68a;
+}
+
 .preview-wrap {
   margin: 1rem 0 1.1rem;
   padding: 14px 14px 12px;

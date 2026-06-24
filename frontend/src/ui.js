@@ -1,4 +1,5 @@
 import { drawWaveform, formatTime, loadWaveformPeaks } from './waveform.js';
+import { saveDownloads, loadDownloads, clearDownloads } from './downloadCache.js';
 
 const apiUrl = (path) => `${import.meta.env.BASE_URL}api/${path}`.replace(/([^:]\/)\/+/g, '$1');
 
@@ -73,7 +74,9 @@ export function initUI() {
     </div>
     <div id="downloadWrap" style="display:none; margin-top:1rem;">
       <p id="downloadTitle">마스터링 완료!</p>
+      <p id="downloadCacheHint" class="download-cache-hint"></p>
       <div id="downloadList"></div>
+      <button type="button" id="clearDownloadsBtn" class="linkish-btn">다운로드 목록 지우기</button>
     </div>
   `;
 
@@ -101,6 +104,8 @@ export function initUI() {
   const downloadWrap = document.getElementById('downloadWrap');
   const downloadTitle = document.getElementById('downloadTitle');
   const downloadList = document.getElementById('downloadList');
+  const downloadCacheHint = document.getElementById('downloadCacheHint');
+  const clearDownloadsBtn = document.getElementById('clearDownloadsBtn');
   const previewWrap = document.getElementById('previewWrap');
   const previewHint = document.getElementById('previewHint');
   const previewStatus = document.getElementById('previewStatus');
@@ -475,6 +480,7 @@ export function initUI() {
 
       renderDownloadList(results);
       downloadWrap.style.display = 'block';
+      void persistDownloads(results);
     } catch (err) {
       stopElapsedTimer();
       progressWrap.style.display = 'none';
@@ -511,8 +517,58 @@ export function initUI() {
     return {
       url,
       filename: serverFilename || ensureMp3Extension(track.originalname),
+      blob,
     };
   }
+
+  async function persistDownloads(results) {
+    try {
+      await saveDownloads(
+        results.map((result, index) => ({
+          id: `dl-${Date.now()}-${index}`,
+          filename: result.filename,
+          blob: result.blob,
+        })),
+      );
+      if (downloadCacheHint) {
+        downloadCacheHint.textContent =
+          '다른 페이지에 갔다 와도 이 브라우저에서 24시간 동안 다시 받을 수 있습니다.';
+      }
+    } catch (err) {
+      console.warn('[mastering] download cache save failed', err);
+    }
+  }
+
+  async function restoreSavedDownloads() {
+    try {
+      const rows = await loadDownloads();
+      if (!rows.length) return;
+      const results = rows.map((row) => ({
+        url: URL.createObjectURL(row.blob),
+        filename: row.filename,
+        blob: row.blob,
+      }));
+      renderDownloadList(results);
+      downloadWrap.style.display = 'block';
+      if (downloadCacheHint) {
+        downloadCacheHint.textContent =
+          '이전에 마스터링한 파일입니다. 24시간 동안 이 기기·브라우저에서 다시 받을 수 있습니다.';
+      }
+    } catch (err) {
+      console.warn('[mastering] download cache load failed', err);
+    }
+  }
+
+  clearDownloadsBtn.addEventListener('click', async () => {
+    try {
+      await clearDownloads();
+    } catch (err) {
+      console.warn('[mastering] download cache clear failed', err);
+    }
+    downloadList.innerHTML = '';
+    downloadWrap.style.display = 'none';
+    if (downloadCacheHint) downloadCacheHint.textContent = '';
+  });
 
   function renderDownloadList(results) {
     downloadTitle.textContent = `마스터링 완료 (${results.length}곡)`;
@@ -576,4 +632,5 @@ export function initUI() {
   }
 
   void refreshAuthState();
+  void restoreSavedDownloads();
 }

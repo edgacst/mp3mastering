@@ -238,10 +238,12 @@ export function initUI() {
     fileName.textContent = `선택 곡 수: ${uploadedTracks.length}곡`;
     fileSize.textContent = `총 용량: ${(totalSize / 1024 / 1024).toFixed(2)} MB`;
 
-    const items = uploadedTracks
-      .map((track, idx) => `${idx + 1}. ${track.originalname} (${(track.size / 1024).toFixed(1)} KB)`)
-      .join('<br/>');
-    fileList.innerHTML = items;
+    fileList.replaceChildren();
+    uploadedTracks.forEach((track, idx) => {
+      const row = document.createElement('div');
+      row.textContent = `${idx + 1}. ${track.originalname} (${(track.size / 1024).toFixed(1)} KB)`;
+      fileList.appendChild(row);
+    });
     updateMasterBtnLabel();
   }
 

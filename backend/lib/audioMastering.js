@@ -45,7 +45,7 @@ function buildAutoFilters({ lufs, truePeak, quietRms }) {
   let boost = 0.55;
   if (inputLufs >= -11.5) boost = 0.2;
   else if (inputLufs >= -13) boost = 0.4;
-  const targetLufs = Math.min(inputLufs + boost, -10.8);
+  const targetLufs = Math.max(-60, Math.min(inputLufs + boost, -10.8));
 
   const maxGain = quiet < -88 ? 5 : 7;
   const normP = inputLufs >= -11.5 ? 0.68 : 0.72;
@@ -58,6 +58,7 @@ function buildAutoFilters({ lufs, truePeak, quietRms }) {
     'equalizer=f=400:t=o:w=1:g=-0.5',
     `equalizer=f=8000:t=o:w=2:g=${highShelf}`,
     'alimiter=level_in=1:level_out=1:limit=0.85:attack=5:release=50',
+    `loudnorm=I=${targetLufs.toFixed(2)}:TP=-1:LRA=11`,
   ];
 
   return { filters, targetLufs, boost };

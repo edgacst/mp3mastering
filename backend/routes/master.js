@@ -4,6 +4,7 @@ const fs = require('fs');
 const { masterToFile, normalizeIntensity } = require('../lib/audioMastering');
 const { analyzeLoudness } = require('../lib/audioAnalysis');
 const { requireVenysoundAuth } = require('../lib/requireAuth');
+const { createRateLimiter } = require('../lib/rateLimit');
 
 const router = express.Router();
 
@@ -13,6 +14,14 @@ const previewDir = path.join(__dirname, '..', 'preview');
 for (const dir of [masteredDir, previewDir]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
+const previewRateLimit = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: Number(process.env.MASTERING_PREVIEW_LIMIT) || 12,
+});
+const masterRateLimit = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: Number(process.env.MASTERING_DOWNLOAD_LIMIT) || 30,
+});
 
 function safeBasename(filename) {
   return path.basename(String(filename || ''));
@@ -40,7 +49,7 @@ function streamMp3File(res, filePath, { inline, displayName, safeName }) {
 }
 
 /** 업로드 직후 1곡 샘플 미리듣기 — 원본 파일은 유지 */
-router.post('/preview', async (req, res) => {
+router.post('/preview', previewRateLimit, async (req, res) => {
   const safeName = safeBasename(req.body.filename);
   const inputPath = resolveInput(safeName);
   if (!inputPath) {
@@ -70,7 +79,7 @@ router.post('/preview', async (req, res) => {
 });
 
 /** 전체 다운로드용 — 로그인 필요, 처리 후 원본·결과 임시 파일 삭제 */
-router.post('/', requireVenysoundAuth, async (req, res) => {
+router.post('/', requireVenysoundAuth, masterRateLimit, async (req, res) => {
   const safeName = safeBasename(req.body.filename);
   const inputPath = resolveInput(safeName);
   if (!inputPath) {

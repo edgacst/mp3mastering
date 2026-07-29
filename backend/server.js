@@ -3,12 +3,17 @@ const express = require('express');
 const path = require('path');
 const uploadRouter = require('./routes/upload');
 const masterRouter = require('./routes/master');
+const { startFileCleanup } = require('./lib/fileCleanup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '127.0.0.1';
 
 app.use(express.json({ limit: '2mb' }));
+
+startFileCleanup(
+  ['uploads', 'mastered', 'preview'].map((directory) => path.join(__dirname, directory)),
+);
 
 // 정적 파일 제공 (프론트엔드 빌드 결과) – 개발 시 Vite dev server 사용, prod 시 dist 폴더
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist'), { redirect: false }));

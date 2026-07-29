@@ -47,17 +47,25 @@ export async function saveDownloads(items) {
 /** 저장된 다운로드 불러오기 */
 export async function loadDownloads() {
   const db = await openDb();
-  const tx = db.transaction(STORE, 'readonly');
+  const tx = db.transaction(STORE, 'readwrite');
   const store = tx.objectStore(STORE);
   const rows = await new Promise((resolve, reject) => {
     const req = store.getAll();
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
   });
+  const now = Date.now();
+  const validRows = [];
+  rows.forEach((row) => {
+    if (row.blob && now - row.savedAt < TTL_MS) {
+      validRows.push(row);
+    } else {
+      store.delete(row.id);
+    }
+  });
   await txDone(tx);
   db.close();
-  const now = Date.now();
-  return rows.filter((row) => row.blob && now - row.savedAt < TTL_MS);
+  return validRows;
 }
 
 export async function clearDownloads() {

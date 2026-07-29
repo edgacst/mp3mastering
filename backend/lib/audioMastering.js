@@ -90,14 +90,23 @@ function runFfmpegEncode(inputPath, outputPath, audioFilters) {
 }
 
 /** inputPath → outputPath MP3 마스터링 (auto=원본 분석 후 자동) */
-async function masterToFile(inputPath, outputPath, intensity = 'auto') {
+async function masterToFile(inputPath, outputPath, intensity = 'auto', precomputedAnalysis = null) {
   const level = normalizeIntensity(intensity);
   let autoMeta = null;
   const chains = [];
 
   if (level === 'auto') {
-    const loudness = await analyzeLoudness(inputPath);
-    const quietRms = await analyzeQuietRms(inputPath);
+    const hasQuietRms =
+      precomputedAnalysis &&
+      Object.prototype.hasOwnProperty.call(precomputedAnalysis, 'quietRms');
+    const [loudness, quietRms] = await Promise.all([
+      precomputedAnalysis?.loudness
+        ? Promise.resolve(precomputedAnalysis.loudness)
+        : analyzeLoudness(inputPath),
+      hasQuietRms
+        ? Promise.resolve(precomputedAnalysis.quietRms)
+        : analyzeQuietRms(inputPath),
+    ]);
     const built = buildAutoFilters({ lufs: loudness.lufs, truePeak: loudness.truePeak, quietRms });
     autoMeta = {
       mode: 'auto',

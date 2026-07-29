@@ -2,6 +2,7 @@ import { drawWaveform, formatTime, loadWaveformPeaks } from './waveform.js';
 import { saveDownloads, loadDownloads, clearDownloads } from './downloadCache.js';
 
 const apiUrl = (path) => `${import.meta.env.BASE_URL}api/${path}`.replace(/([^:]\/)\/+/g, '$1');
+const MASTERING_CONCURRENCY = 2;
 
 async function readApiError(res) {
   const text = await res.text();
@@ -87,7 +88,9 @@ export function initUI() {
   let previewStats = null;
   let previewPeaks = { original: null, mastered: null };
   let previewLoadToken = 0;
+  let previewWork = Promise.resolve();
   let isLoggedIn = false;
+  let isMastering = false;
 
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
@@ -209,7 +212,7 @@ export function initUI() {
       renderUploadedList();
       progressWrap.style.display = 'none';
       fileInfo.style.display = 'block';
-      void loadPreviewSample();
+      previewWork = loadPreviewSample();
     } catch (err) {
       stopElapsedTimer();
       progressWrap.style.display = 'none';
@@ -455,25 +458,21 @@ export function initUI() {
   }
 
   masterBtn.addEventListener('click', async () => {
-    if (!uploadedTracks.length) return;
-    if (!(await ensureLoggedIn())) return;
-
-    fileInfo.style.display = 'none';
-    downloadWrap.style.display = 'none';
-    progressWrap.style.display = 'block';
-    statusText.textContent = `마스터링 처리 중... (0/${uploadedTracks.length})`;
-    setProgress(0);
-    startElapsedTimer();
+    if (!uploadedTracks.length || isMastering) return;
+    isMastering = true;
+    masterBtn.disabled = true;
 
     try {
-      const results = [];
-      for (let i = 0; i < uploadedTracks.length; i += 1) {
-        const track = uploadedTracks[i];
-        statusText.textContent = `마스터링 처리 중... (${i + 1}/${uploadedTracks.length}) ${track.originalname}`;
-        const result = await masterSingleTrack(track);
-        results.push(result);
-        setProgress(Math.round(((i + 1) / uploadedTracks.length) * 100));
-      }
+      if (!(await ensureLoggedIn())) return;
+      await previewWork;
+
+      fileInfo.style.display = 'none';
+      downloadWrap.style.display = 'none';
+      progressWrap.style.display = 'block';
+      statusText.textContent = `마스터링 처리 중... (0/${uploadedTracks.length})`;
+      setProgress(0);
+      startElapsedTimer();
+      const results = await masterTracks(uploadedTracks);
 
       stopElapsedTimer();
       statusText.textContent = '마스터링 완료';
@@ -488,8 +487,42 @@ export function initUI() {
       progressWrap.style.display = 'none';
       fileInfo.style.display = 'block';
       alert('마스터링 오류: ' + err.message);
+    } finally {
+      isMastering = false;
+      masterBtn.disabled = false;
+      updateMasterBtnLabel();
     }
   });
+
+  async function masterTracks(tracks) {
+    const results = new Array(tracks.length);
+    let nextIndex = 0;
+    let completed = 0;
+    let failed = false;
+
+    async function worker() {
+      while (!failed && nextIndex < tracks.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        const track = tracks[index];
+        statusText.textContent =
+          `마스터링 처리 중... (${completed}/${tracks.length}) ${track.originalname}`;
+        try {
+          results[index] = await masterSingleTrack(track);
+        } catch (err) {
+          failed = true;
+          throw err;
+        }
+        completed += 1;
+        statusText.textContent = `마스터링 처리 중... (${completed}/${tracks.length})`;
+        setProgress(Math.round((completed / tracks.length) * 100));
+      }
+    }
+
+    const workerCount = Math.min(MASTERING_CONCURRENCY, tracks.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
 
   async function masterSingleTrack(track) {
     const res = await fetch(apiUrl('master'), {

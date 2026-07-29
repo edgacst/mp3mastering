@@ -2,9 +2,15 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { masterToFile, normalizeIntensity } = require('../lib/audioMastering');
-const { analyzeLoudness } = require('../lib/audioAnalysis');
+const { analyzeLoudness, analyzeQuietRms } = require('../lib/audioAnalysis');
 const { requireVenysoundAuth } = require('../lib/requireAuth');
 const { createRateLimiter } = require('../lib/rateLimit');
+const {
+  cachePaths,
+  readPreviewCache,
+  writePreviewCache,
+  removePreviewCache,
+} = require('../lib/previewCache');
 
 const router = express.Router();
 
@@ -33,7 +39,11 @@ function resolveInput(safeName) {
   return inputPath;
 }
 
-function streamMp3File(res, filePath, { inline, displayName, safeName }) {
+function streamMp3File(
+  res,
+  filePath,
+  { inline, displayName, safeName, deleteAfterStream = true, onClose },
+) {
   const encodedName = encodeURIComponent(displayName).replace(/'/g, '%27');
   const disposition = inline ? 'inline' : 'attachment';
   res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"; filename*=UTF-8''${encodedName}`);
@@ -41,7 +51,12 @@ function streamMp3File(res, filePath, { inline, displayName, safeName }) {
   const stream = fs.createReadStream(filePath);
   stream.pipe(res);
   stream.on('close', () => {
-    fs.unlink(filePath, () => {});
+    if (deleteAfterStream) fs.unlink(filePath, () => {});
+    if (onClose) {
+      Promise.resolve(onClose()).catch((err) => {
+        console.error('[master] 전송 후 임시 파일 정리 오류:', err.message);
+      });
+    }
   });
   stream.on('error', () => {
     if (!res.headersSent) res.status(500).json({ error: '파일 전송 중 오류가 발생했습니다.' });
@@ -58,20 +73,62 @@ router.post('/preview', previewRateLimit, async (req, res) => {
 
   const displayName = req.body.originalname || safeName;
   const intensity = normalizeIntensity(req.body.intensity);
-  const outputPath = path.join(previewDir, `preview_${safeName}`);
+  const { audioPath: outputPath } = cachePaths(previewDir, safeName);
 
   try {
-    const originalStats = await analyzeLoudness(inputPath);
-    const autoMeta = await masterToFile(inputPath, outputPath, intensity);
+    const cached = await readPreviewCache({ previewDir, safeName, inputPath, intensity });
+    if (cached) {
+      res.setHeader('X-Preview-Stats', JSON.stringify(cached.metadata.stats));
+      res.setHeader('X-Mastering-Cache', 'hit');
+      streamMp3File(res, cached.audioPath, {
+        inline: true,
+        displayName,
+        safeName,
+        deleteAfterStream: false,
+      });
+      return;
+    }
+
+    await removePreviewCache(previewDir, safeName);
+    const [originalStats, quietRms] = await Promise.all([
+      analyzeLoudness(inputPath),
+      intensity === 'auto' ? analyzeQuietRms(inputPath) : Promise.resolve(null),
+    ]);
+    const autoMeta = await masterToFile(
+      inputPath,
+      outputPath,
+      intensity,
+      intensity === 'auto' ? { loudness: originalStats, quietRms } : null,
+    );
     const masteredStats = await analyzeLoudness(outputPath);
+    const stats = { original: originalStats, mastered: masteredStats, auto: autoMeta };
+    let cacheSaved = false;
+    try {
+      await writePreviewCache({
+        previewDir,
+        safeName,
+        inputPath,
+        intensity,
+        stats,
+      });
+      cacheSaved = true;
+    } catch (cacheErr) {
+      console.error('[preview-cache] 저장 오류:', cacheErr.message);
+    }
     res.setHeader(
       'X-Preview-Stats',
-      JSON.stringify({ original: originalStats, mastered: masteredStats, auto: autoMeta }),
+      JSON.stringify(stats),
     );
-    streamMp3File(res, outputPath, { inline: true, displayName, safeName });
+    res.setHeader('X-Mastering-Cache', 'miss');
+    streamMp3File(res, outputPath, {
+      inline: true,
+      displayName,
+      safeName,
+      deleteAfterStream: !cacheSaved,
+    });
   } catch (err) {
     console.error('ffmpeg preview 오류:', err.message);
-    fs.unlink(outputPath, () => {});
+    await removePreviewCache(previewDir, safeName).catch(() => {});
     if (!res.headersSent) {
       res.status(500).json({ error: '미리듣기 마스터링 중 오류: ' + err.message });
     }
@@ -91,9 +148,32 @@ router.post('/', requireVenysoundAuth, masterRateLimit, async (req, res) => {
   const outputPath = path.join(masteredDir, 'mastered_' + safeName);
 
   try {
+    const cached = await readPreviewCache({ previewDir, safeName, inputPath, intensity });
+    if (cached) {
+      res.setHeader('X-Mastering-Cache', 'hit');
+      streamMp3File(res, cached.audioPath, {
+        inline: false,
+        displayName,
+        safeName,
+        deleteAfterStream: false,
+        onClose: async () => {
+          await Promise.all([
+            removePreviewCache(previewDir, safeName),
+            fs.promises.rm(inputPath, { force: true }),
+          ]);
+        },
+      });
+      return;
+    }
+
     await masterToFile(inputPath, outputPath, intensity);
-    streamMp3File(res, outputPath, { inline: false, displayName, safeName });
-    fs.unlink(inputPath, () => {});
+    res.setHeader('X-Mastering-Cache', 'miss');
+    streamMp3File(res, outputPath, {
+      inline: false,
+      displayName,
+      safeName,
+      onClose: () => fs.promises.rm(inputPath, { force: true }),
+    });
   } catch (err) {
     console.error('ffmpeg 오류:', err.message);
     fs.unlink(outputPath, () => {});
